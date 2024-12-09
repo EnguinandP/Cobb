@@ -11,6 +11,8 @@ open Context
 open Relation
 open Timeout
 
+let max_cost = 69420
+
 module TypeInference = struct
   type type_inf_result =
     | NoCoverage
@@ -56,13 +58,13 @@ module type Block_intf = sig
   val get_local_ctx : t -> LocalCtx.t
   val typing_relation : uctx -> t -> t -> Relations.relation
   val is_sub_rty : uctx -> t -> t -> bool
+  val create_target : Nt.t rty -> t
 end
 
 module ExistentializedBlock : sig
   type t = { id : identifier; ty : Nt.t rty }
 
   val path_promotion : LocalCtx.t -> t -> t
-  val create_target : Nt.t rty -> t
 
   include Block_intf with type t := t
 end = struct
@@ -154,21 +156,46 @@ end = struct
     let ext_rty = exists_rtys_to_rty local_ctx ty in
     { id; ty = ext_rty }
 
+  let create_target (target_ty : Nt.t rty) : t =
+    (* Create a target block that we are missing *)
+    let name = Rename.unique "missing" in
+    {
+      id = name #: (erase_rty target_ty) |> NameTracking.known_var;
+      ty = target_ty;
+      lc = Typectx [ name #: target_ty ];
+      cost = max_cost;
+    }
+
+  (* Either both blocks have the same path condition or neither have a path
+     condition *)
+  let shared_path_cond (block : t) (block' : t) : bool =
+    match LocalCtx.get_path_cond block.lc with
+    | Some x -> LocalCtx.get_path_cond block'.lc = Some x
+    | None -> not (LocalCtx.contains_path_cond block'.lc)
+
   let is_sub_rty (uctx : uctx) (block : t) (block' : t) : bool =
-    (* let id, target_ty, ctx = block in
-       let id', ty, ctx' = block' in *)
-    assert (not (LocalCtx.contains_path_cond block.lc));
-    assert (not (LocalCtx.contains_path_cond block'.lc));
+    (* Check that either both blocks have a path condition or neither of them do *)
+    assert (shared_path_cond block block');
 
     let combined_ctx, mapping = LocalCtx.local_ctx_union_r block.lc block'.lc in
+
     let updated_ty = Pieces.ut_subst block'.ty mapping in
 
+    (* print_endline "Combined Context";
+       LocalCtx.layout combined_ctx |> print_endline;
+       print_endline "updated Type";
+       layout_rty updated_ty |> print_endline;
+
+       print_endline "Block type in question";
+       layout_rty block.ty |> print_endline; *)
     let res =
       Relations.is_sub_rty
         (LocalCtx.uctx_add_local_ctx combined_ctx)
         block.ty updated_ty
     in
 
+    (* print_endline "Result";
+       print_endline (string_of_bool res); *)
     LocalCtx.cleanup mapping ~recursive:false;
 
     res
@@ -178,10 +205,7 @@ end = struct
     (* let target_id, target_ty, target_ctx = target_block in
        let id, ty, ctx = block in
     *)
-    if
-      LocalCtx.contains_path_cond target_block.lc
-      || LocalCtx.contains_path_cond block.lc
-    then
+    if shared_path_cond block target_block then
       ExistentializedBlock.typing_relation uctx
         (existentialize target_block)
         (existentialize block)
@@ -203,7 +227,7 @@ end = struct
 
       LocalCtx.cleanup mapping ~recursive:false;
 
-      (*       Relations.layout res |> print_endline; *)
+      (* Relations.layout res |> print_endline; *)
       res
 
   (* Takes vars with their own locals variables and constructs a list of
@@ -335,8 +359,9 @@ module PreBlock = struct
         else (
           print_endline "new";
           let new_ctx =
-            Typectx.add_to_right joined_ctx { x = block_id.x; ty = new_ut.ty }
+            LocalCtx.add_name_to_ctx joined_ctx block_id.x #: new_ut.ty
           in
+
           assert (block_id.ty = ret_type);
           Some { id = block_id; ty = new_ut.ty; lc = new_ctx; cost })
 end

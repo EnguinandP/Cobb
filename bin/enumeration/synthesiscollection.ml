@@ -255,9 +255,7 @@ end
 module PrioritySynthesisCollection = struct
   type t = {
     path_specific :
-      ( LocalCtx.t,
-        ExistentializedBlock.t * PriorityBBMap.t * BlockMap.t )
-      Hashtbl.t;
+      (LocalCtx.t, Block.t * PriorityBBMap.t * BlockMap.t) Hashtbl.t;
   }
 
   let assert_valid (t : t) : unit =
@@ -271,7 +269,7 @@ module PrioritySynthesisCollection = struct
   let init (inital_seeds : BlockMap.t) (target_ty : Nt.t rty)
       (path_specific_seeds : (LocalCtx.t, BlockMap.t) Hashtbl.t) : t =
     let inital_seeds = BlockMap.to_list inital_seeds in
-    let target_block = ExistentializedBlock.create_target target_ty in
+    let target_block = Block.create_target target_ty in
     let path_specific =
       Hashtbl.map
         (fun (p, seeds) ->
@@ -285,11 +283,16 @@ module PrioritySynthesisCollection = struct
                    { b with lc = new_path_ctx })
                  inital_seeds)
           in
-          let path_target_block =
-            ExistentializedBlock.path_promotion p target_block
+
+          let target_block =
+            {
+              target_block with
+              lc = LocalCtx.local_ctx_union_r p target_block.lc |> fst;
+            }
           in
+
           ( p,
-            ( path_target_block,
+            ( target_block,
               PriorityBBMap.init path_seeds,
               BlockMap.init path_seeds ) ))
         path_specific_seeds
@@ -305,7 +308,7 @@ module PrioritySynthesisCollection = struct
     in
     let new_general_blocks = BlockMap.to_list new_general_blocks in
 
-    let target_block = ExistentializedBlock.create_target target_ty in
+    let target_block = Block.create_target target_ty in
 
     assert (BlockMap.is_empty old_blocks);
     let path_specific =
@@ -327,12 +330,15 @@ module PrioritySynthesisCollection = struct
               (new_blocks, []) path_general_blocks
           in
 
-          let path_target_block =
-            ExistentializedBlock.path_promotion lc target_block
+          let target_block =
+            {
+              target_block with
+              lc = LocalCtx.local_ctx_union_r lc target_block.lc |> fst;
+            }
           in
 
           ( lc,
-            ( path_target_block,
+            ( target_block,
               PriorityBBMap.init
                 (List.append added_blocks (BlockMap.to_list new_blocks)),
               combined_block_map ) ))

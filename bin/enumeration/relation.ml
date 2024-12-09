@@ -110,6 +110,7 @@ end = struct
         RelationCache.add target_id.x id.x res;
         res
 
+  (* TODO: Use shortcircuiting here *)
   let check_coverage_with_args uctx block_id new_ut arg_names : bool =
     List.exists
       (fun ({ x; _ } : identifier) ->

@@ -33,6 +33,20 @@ module LocalCtx = struct
       (fun { x; _ } -> String.starts_with ~prefix:path_condition_prefix x)
       ctx
 
+  let get_path_cond (Typectx.Typectx ctx : t) : _ option =
+    let path_contexts =
+      List.find_all
+        (fun { x; _ } -> String.starts_with ~prefix:path_condition_prefix x)
+        ctx
+    in
+    if List.is_empty path_contexts then None
+    else
+      let res = List.hd path_contexts in
+      (* If there is a path condition, then there is only just that one(possibly
+      a duplicate number of times)*)
+      assert (List.for_all (fun x -> String.equal x.x res.x) path_contexts);
+      Some res
+
   let eq (Typectx.Typectx l : t) (Typectx.Typectx r : t) : bool = l = r
 
   let layout (Typectx l : t) : string =
@@ -70,6 +84,9 @@ module LocalCtx = struct
     Typectx.Typectx (local_ctx @ promote_ctx)
 
   let exists_rtys_to_rty (Typectx.Typectx ctx) rty = exists_rtys_to_rty ctx rty
+
+  (** Add a name/type to the context *)
+  let add_name_to_ctx (ctx : t) id_rty = Typectx.add_to_right ctx id_rty
 
   (* Only allowed when the old_name is not used in any other types *)
   let update_name (Typectx.Typectx ctx : t) old_name new_name =

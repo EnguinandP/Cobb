@@ -7,12 +7,15 @@ open Mtyped
 open Tracking
 open Context
 
+(* TODO: factor out cost?*)
 type block_record = {
   id : identifier;
   ty : Nt.t rty;
   lc : LocalCtx.t;
   cost : int;
 }
+
+
 
 let rec typed_term_replace_block_body (t : (_, _ term) typed) replacement_body :
     (_, _ term) typed =
@@ -198,7 +201,7 @@ module Pieces = struct
                            (Lit.AVar "v" #: nt) #: nt; (Lit.AVar x #: nt) #: nt;
                          ] ))
                     #: Nt.Ty_bool;
-              };
+              }; (* TODO: use mk_lit_eq or mk_prop_var_eq_var *)
         }
     in
     let new_seed : new_seed =

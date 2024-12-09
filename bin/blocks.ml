@@ -5,7 +5,6 @@ open Zzdatatype.Datatype
 open Language
 open Context
 open Block
-open Blockset
 open Blockmap
 open Extraction
 open Synthesiscollection
@@ -14,11 +13,11 @@ let check_paths_for_solution (collection : PrioritySynthesisCollection.t) :
     (LocalCtx.t * _) list =
   Hashtbl.fold
     (fun lc (path_target_block, _, bmap) acc ->
-      let nty = ExistentializedBlock.to_nty path_target_block in
-      (* todo better *)
-      let s = BlockMap.existentialized_list bmap nty |> BlockSetE.init in
+      let nty = Block.to_nty path_target_block in
 
-      let res = Extraction.extract_for_path lc path_target_block s in
+      let bset = BlockMap.get bmap nty in
+
+      let res = Extraction.extract_for_path lc path_target_block bset in
       List.append res acc)
     collection.path_specific []
 
@@ -66,9 +65,8 @@ module PrioritySynthesis = struct
     if Hashtbl.length collection.path_specific = 0 then acc
     else if
       (not (List.is_empty path_solutions))
-      && Extraction.check_types_against_target
-           (List.map (fun (_, (b : ExistentializedBlock.t)) -> b.ty) acc)
-           target_type
+      && Extraction.check_types_against_target (List.map snd acc)
+           (ExistentializedBlock.create_target target_type)
     then acc
     else
       let enumeration_result =
@@ -106,11 +104,12 @@ module PrioritySynthesis = struct
           in *)
        synthesis_helper target_type max_cost 4 (* priority_queue *) inital_seeds
          operations collection_file paths_finished_by_seeds)
-    |> List.map (fun (lc, b) -> (lc, ExistentializedBlock.to_typed_term b))
+    |> List.map (fun (lc, b) ->
+           (lc, b |> Block.existentialize |> ExistentializedBlock.to_typed_term))
     |> group_by (fun (x, y) -> x)
     |> List.map (fun (x, y) -> (x, List.map snd y))
 end
-
+(*
 module Synthesis = struct
   let rec synthesis_helper (max_depth : int) (target_type : rty)
       (collection : SynthesisCollection.t)
@@ -125,8 +124,11 @@ module Synthesis = struct
     | 0 ->
         print_endline "Starting Extraction";
         (*        failwith (string_of_int !Backend.Check.query_counter); *)
-        Extraction.extract_blocks collection target_type
-        |> List.map (fun (lc, b) -> (lc, ExistentializedBlock.to_typed_term b))
+        Extraction.extract_blocks collection (Block.create_target target_type)
+        |> List.map (fun (lc, b) ->
+               ( lc,
+                 b |> Block.existentialize |> ExistentializedBlock.to_typed_term
+               ))
         |> group_by (fun (x, y) -> x)
     | depth ->
         print_endline ("Enumeration Depth(in reverse): " ^ string_of_int depth);
@@ -154,3 +156,4 @@ module Synthesis = struct
     synthesis_helper max_depth target_type inital_seeds operations
       collection_file
 end
+ *)

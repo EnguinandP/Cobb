@@ -120,10 +120,10 @@ module NameTracking = struct
             |> List.concat
           in
           (args, t)
+      | Some ({ x = CErr; _ } as t) -> ([], t)
       | Some { x = CLetE _; _ }
       | Some { x = CLetDeTu _; _ }
       | Some { x = CVal _; _ }
-      | Some { x = CErr; _ }
       | Some { x = CMatch _; _ }
       | None ->
           print_endline ("get_term: " ^ a.x);
